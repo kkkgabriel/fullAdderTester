@@ -7,5 +7,5 @@ Port 13 (B)<br>
 port 14 (Cin)<br>
 
 FPGA Input:<br>
-Port 41 (Carry)
+Port 41 (Carry)<br>
 Port 51 (Sum)
