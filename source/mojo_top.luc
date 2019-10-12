@@ -1,0 +1,307 @@
+module mojo_top (
+    input clk,              // 50MHz clock
+    input rst_n,            // reset button (active low)
+    output led [8],         // 8 user controllable LEDs
+    //input cclk,             // configuration clock, AVR ready when high
+    output spi_miso,        // AVR SPI MISO
+    //input spi_ss,           // AVR SPI Slave Select
+    //input spi_mosi,         // AVR SPI MOSI
+    //input spi_sck,          // AVR SPI Clock
+    output spi_channel [4], // AVR general purpose pins (used by default to select ADC channel)
+    //input avr_tx,           // AVR TX (FPGA RX)
+    output avr_rx,          // AVR RX (FPGA TX)
+    //input avr_rx_busy,      // AVR RX buffer full
+    output io_led [3][8],   // LEDs on IO Shield
+    output io_seg [8],      // 7-segment LEDs on IO Shield
+    output io_sel [4],      // Digit select on IO Shield
+    input io_button [5],    // 5 buttons on IO Shield 
+    input io_dip [3][8],     // DIP switches on IO Shield
+    
+    input ip_pin[2]
+    
+  ) {
+  
+  sig rst;                  // reset signal
+  sig op[8];                // output
+  sig auto;
+
+  .clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+    
+    // edge_detector edge_detector (#RISE(1), #FALL(0)); // commented out
+    
+    .rst(rst) {
+      multi_seven_seg seg;
+      // multi_dec_ctr dec_ctr;  // commented out
+      // counter ctr (#SIZE(1), #DIV(24));  // commented out
+      
+      .io_button(io_button){
+        debounce debounce;  // debouncing module to stop button from overreacting
+      }
+      
+      .io_dip(io_dip){
+        autoclk autoclk;  // auto clocking module
+      }
+      
+      dff test(#INIT(0));  // dff to store test mode
+      dff state[3] (#INIT(b000));  // dff to store state
+    }
+  }
+  always {
+    // hook up auto to io_dip[2][7]
+    auto = io_dip[2][7];
+    
+    // transitions based on inputs and auto
+    if (!auto){
+      // manual state transitions
+      if (debounce.out==b10){  // down
+        if (state.q == b000){
+          state.d = b111;
+        } else {
+          state.d = state.q - 1;
+        }        
+      } else if (debounce.out==b01) {  // up
+        if (state.q == b111){
+          state.d = b000;
+        } else {
+          state.d = state.q + 1;
+        }
+      } else if (debounce.out==b11){  // center
+        test.d = !test.q;
+      }
+    } 
+  }
+  
+  always {
+    reset_cond.in = ~rst_n;   // input raw inverted reset signal
+    rst = reset_cond.out;     // conditioned reset
+    spi_miso = bz;            // not using SPI
+    spi_channel = bzzzz;      // not using flags
+    avr_rx = bz;              // not using serial port
+    // edge_detector.in = ctr.value;  
+    // dec_ctr.inc = edge_detector.out;
+    io_seg = ~seg.seg; // connect segments to the driver
+    io_sel = ~seg.sel; // connect digit select to the driver
+    led = c{8b0}; // turn the basic 8 leds off
+    
+    
+    // Behaviours
+    
+    if (auto){
+      // hard coded auto behaviour
+      if (autoclk.out == 1){          // 2s: 000
+        seg.values = {h9,h0,h0,h0};   // seg values: "000"
+        op = c{b00000000};            // output: 00000000
+        
+      } else if ( autoclk.out == 2 ){ // 4s: testing for 000
+        op = c{b00000000};            // output: 00000000
+        
+        if (ip_pin == b00 ) {         // check for correct input: 00
+          seg.values = {h3,h4,h5,h5}; // PASS
+        } else {
+          seg.values = {h6,h4,h7,h8}; // FAIL
+        }
+                                       // ---------------------
+      } else if ( autoclk.out == 3 ){  // 6s: 001
+        seg.values = {h9,h0,h0,h1};    // seg values: "001"
+        op = c{b00100001};             // output: 001000001
+        
+      } else if ( autoclk.out == 4 ){  // 8s: testing for 001
+        op = c{b00100001};             // output: 001000001
+        
+        if (ip_pin == b01 ) {          // check for correct input : 01
+          seg.values = {h3,h4,h5,h5};  // PASS
+        } else {
+          seg.values = {h6,h4,h7,h8};  // FAIL
+        }
+                                       // ---------------------
+      } else if ( autoclk.out == 5 ){  // 10s: 010
+        seg.values = {h9,h0,h1,h0};    // seg values: "010"
+        op = c{b01000001};             // output: b01000001
+        
+      } else if ( autoclk.out == 6 ){  // 12s: testing for 010
+        op = c{b01000001};             // output: b01000001
+        
+        if (ip_pin == b01 ) {          // check for correct input: 01
+          seg.values = {h3,h4,h5,h5};  // PASS
+        } else {
+          seg.values = {h6,h4,h7,h8};  // FAIL
+        }
+                                       // ---------------------
+      } else if ( autoclk.out == 7 ){  // 14s: 011
+        seg.values = {h9,h0,h1,h1};    // seg values: "011"
+        op = c{b01100010};             // output: b01100010
+        
+      } else if ( autoclk.out == 8 ){  // 16s: check for correct input: 10
+        op = c{b01100010};             // output: b01100010
+        
+        if (ip_pin == b10 ) {          // check for correct input: 01
+          seg.values = {h3,h4,h5,h5};  // PASS
+        } else {
+          seg.values = {h6,h4,h7,h8};  // FAIL
+        }
+                                       // ---------------------
+      } else if ( autoclk.out == 9 ){  // 18s: 100
+        seg.values = {h9,h1,h0,h0};    // seg values: "100"
+        op = c{b10000001};             // output: b10000001
+        
+      } else if ( autoclk.out == 10 ){ // 20s: testing for 100
+        op = c{b10000001};             // output: b10000001
+        
+        if (ip_pin == b01 ) {          // check for correct input: 01
+          seg.values = {h3,h4,h5,h5};  // PASS
+        } else {
+          seg.values = {h6,h4,h7,h8};  // FAIL
+        }
+                                       // ---------------------
+      } else if ( autoclk.out == 11 ){ // 22s: 101
+        seg.values = {h9,h1,h0,h1};    // seg values: "101"
+        op = c{b10100010};             // output: b10100010
+        
+      } else if ( autoclk.out == 12 ){ // 24s: testing for 101          
+        op = c{b10100010};             // output: b10100010
+        
+        if (ip_pin == b10 ) {          // check for correct input: 10
+          seg.values = {h3,h4,h5,h5};  // PASS
+        } else {
+          seg.values = {h6,h4,h7,h8};  // FAIL
+        }
+                                       // ---------------------
+      } else if ( autoclk.out == 13 ){ // 26s: 110
+        seg.values = {h9,h1,h1,h0};    // seg values: "110"
+        op = c{b11000010};             // output: b11000010
+        
+      } else if ( autoclk.out == 14 ){ // 28s: testing for 110
+        op = c{b11000010};             // output: b11000010
+        
+        if (ip_pin == b10 ) {          // check for correct output: 10
+          seg.values = {h3,h4,h5,h5};  // PASS
+        } else {
+          seg.values = {h6,h4,h7,h8};  // FAIL
+        }
+                                       // ---------------------
+      } else if ( autoclk.out == 15 ){ // 30s: 111
+        seg.values = {h9,h1,h1,h1};    // seg values: "111"
+        op = c{b11100011};             // output: b11100011
+        
+      } else if ( autoclk.out == 16 ){ // 32: testing for 111
+        op = c{b11100011};             // output: b11100011
+        
+        if (ip_pin == b11 ) {          // check for correct input: 11
+          seg.values = {h3,h4,h5,h5};  // PASS
+        } else {
+          seg.values = {h6,h4,h7,h8};  // FAIL
+        }
+                                       // ---------------------
+          
+      }
+    } else {  
+      // testing state behaviours
+      if (test.q){
+        case (state.q){
+          b000:                            // testing for 000
+            if (ip_pin == b00 ) {          // check for correct input: 00
+              seg.values = {h3,h4,h5,h5};  // PASS
+            } else {
+              seg.values = {h6,h4,h7,h8};  // FAIL
+            }
+                                           // ---------------------
+          b001:                            // testing for 001
+            if (ip_pin == b01 ) {          // check for correct input: 01
+              seg.values = {h3,h4,h5,h5};  // PASS
+            } else {
+              seg.values = {h6,h4,h7,h8};  // FAIL
+            }
+                                           // ---------------------
+          b010:                            // testing for 010
+            if (ip_pin == b01 ) {          // check for correct input: 01
+              seg.values = {h3,h4,h5,h5};  // PASS
+            } else {
+              seg.values = {h6,h4,h7,h8};  // FAIL
+            }
+                                           // ---------------------
+          b011:                            // testing for 011
+            if (ip_pin == b10 ) {          // check for correct input: 10
+              seg.values = {h3,h4,h5,h5};  // PASS
+            } else {
+              seg.values = {h6,h4,h7,h8};  // FAIL
+            }
+                                           // ---------------------
+          b100:                            // testing for 100
+            if (ip_pin == b01 ) {          // check for correct input: 01
+              seg.values = {h3,h4,h5,h5};  // PASS
+            } else {
+              seg.values = {h6,h4,h7,h8};  // FAIL
+            }
+                                           // ---------------------
+          b0101:                           // testing for 101
+            if (ip_pin == b10 ) {          // check for correct input: 10
+              seg.values = {h3,h4,h5,h5};  // PASS
+            } else {
+              seg.values = {h6,h4,h7,h8};  // FAIL
+            }
+                                           // ---------------------
+          b110:                            // testing for 110
+            if (ip_pin == b10 ) {          // check for correct input: 10
+              seg.values = {h3,h4,h5,h5};  // PASS
+            } else {
+              seg.values = {h6,h4,h7,h8};  // FAIL
+            }
+                                           // ---------------------
+          b111:                            // testing for 111
+            if (ip_pin == b11 ) {          // check for correct input: 11
+              seg.values = {h3,h4,h5,h5};  // PASS
+            } else {
+              seg.values = {h6,h4,h7,h8};  // FAIL
+            }
+                                           // ---------------------
+          default: 
+           seg.values = {h6,h4,h7,h8};  // FAIL
+        }  
+      } else {
+        // states behaviours
+        case (state.q){
+          b000:                            // 000
+            seg.values = {h9,h0,h0,h0};    // seg values: 000
+            op = c{b00000000};             // output: 00000000
+                                           
+          b001:                            // 001
+            seg.values = {h9,h0,h0,h1};    // seg values: 001
+            op = c{b00100001};             // output: 00100001
+            
+          b010:                            // 010
+            seg.values = {h9,h0,h1,h0};    // seg values: 010
+            op = c{b01000001};             // output: 01000001
+            
+          b011:                            // 011
+            seg.values = {h9,h0,h1,h1};    // seg values: 011
+            op = c{b01100010};             // output: 01100010
+            
+          b100:                            // 100
+            seg.values = {h9,h1,h0,h0};    // seg values: 100
+            op = c{b10000001};             // output: 10000001
+            
+          b101:                            // 101
+            seg.values = {h9,h1,h0,h1};    // seg values: 101
+            op = c{b10100010};             // output: 10100010
+            
+          b110:                            // 110
+            seg.values = {h9,h1,h1,h0};    // seg values: 110
+            op = c{b11000010};             // output: 11000010
+            
+          b111:                            // 111
+            seg.values = {h9,h1,h1,h1};    // seg values: 111
+            op = c{b11100011};             // output: 11100011
+          default: 
+           seg.values = {h9,h0,h0,h0};    // seg values: 000
+            op = c{b10000000};            // output: 10000000
+        }  
+      }
+    }
+    
+    
+    io_led = {c{auto,7b0}, op, c{6b0,ip_pin}};   // connect the DIP switch[0] to the LED[23]
+  }    
+}

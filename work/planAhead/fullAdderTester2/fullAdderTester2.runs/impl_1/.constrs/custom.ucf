@@ -1,0 +1,6 @@
+| PULLDOWN;
+NET "ip_pin[0]" LOC = P51;
+NET "ip_pin[0]" IOSTANDARD = LVTTL;
+| PULLDOWN;
+NET "ip_pin[1]" LOC = P41;
+NET "ip_pin[1]" IOSTANDARD = LVTTL;

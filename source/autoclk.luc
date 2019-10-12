@@ -1,0 +1,71 @@
+module autoclk (
+    input clk,  // clock
+    input rst,  // reset
+    input io_dip[3][8], // receive input to trigger auto testing
+    output out[5]
+  ) {
+  
+  .clk(clk), .rst(rst) {
+    dff fast_clk[31](#INIT(31b0));  // Counter for fast clock
+    dff slow_clk[5](#INIT(5b0));  // Counter for slow clock   
+  }
+  
+
+  
+  always {
+    // if not auto
+    if (!io_dip[2][7]){
+      // set everything to 0
+      fast_clk.d = 0;
+      slow_clk.d = 0;
+    
+    // if auto ...
+    } else {
+      // if fast clock reaches 32s, reset to 0
+      if (fast_clk.q == 1600000100){
+        fast_clk.d = 0;
+      } else {
+        // Everything the clock ticks, add one to the fast clock
+        fast_clk.d = fast_clk.q + 1;
+      }
+      
+      // every 2s, the slow clock will change its output
+      case (fast_clk.q){
+        100000000:
+          slow_clk.d = 1;
+        200000000:
+          slow_clk.d = 2;
+        300000000:
+          slow_clk.d = 3;
+        400000000:
+          slow_clk.d = 4;
+        500000000:
+          slow_clk.d = 5;
+        600000000:
+          slow_clk.d = 6;
+        700000000:
+          slow_clk.d = 7;
+        800000000:
+          slow_clk.d = 8;
+        900000000:
+          slow_clk.d = 9;
+        1000000000:
+          slow_clk.d = 10;
+        1100000000:
+          slow_clk.d = 11;
+        1200000000:
+          slow_clk.d = 12;
+        1300000000:
+          slow_clk.d = 13;
+        1400000000:
+          slow_clk.d = 14;
+        1500000000:
+          slow_clk.d = 15;
+        1600000000:
+          slow_clk.d = 16;
+      }
+    }
+    out = slow_clk.q;
+    
+  }
+}
