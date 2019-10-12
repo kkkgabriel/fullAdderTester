@@ -1,11 +1,11 @@
 # fullAdderTester
 Flash the script to your FPGA and make the connections as stated:
 
-FPGA Output:
-Port 11 (A)
-Port 13 (B)
-port 14 (Cin)
+FPGA Output:<br>
+Port 11 (A)<br>
+Port 13 (B)<br>
+port 14 (Cin)<br>
 
-FPGA Input:
+FPGA Input:<br>
 Port 41 (Carry)
 Port 51 (Sum)
